@@ -2,3 +2,5 @@
 dist/
 *.egg-info/
 *.pyc
+
+simple_email_confirmation/tests/tmp/
