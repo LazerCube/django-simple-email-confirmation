@@ -8,6 +8,9 @@ from django.utils.crypto import get_random_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
+from django.template.loader import render_to_string
+from django.core.mail import send_mail
+
 from .exceptions import (
     EmailConfirmationExpired, EmailIsPrimary, EmailNotConfirmed,
 )
@@ -151,7 +154,6 @@ class SimpleEmailConfirmationUserMixin(object):
 
 
 class EmailAddressManager(models.Manager):
-
     def generate_key(self):
         "Generate a new random key and return it"
         # sticking with the django defaults
@@ -178,6 +180,7 @@ class EmailAddressManager(models.Manager):
         key = self.generate_key()
         # let email-already-exists exception propogate through
         address = self.create(user=user, email=email, key=key)
+        address.send_confirmation_email()
         unconfirmed_email_created.send(sender=user, email=email)
         return address
 
@@ -271,6 +274,29 @@ class EmailAddress(models.Model):
         self.confirmed_at = None
         self.save(update_fields=['key', 'set_at', 'confirmed_at'])
         return self.key
+
+    def send_confirmation_email(self):
+        if(self.is_key_expired):
+            key = self.reset_confirmation()
+        else:
+            key = self.key
+
+        context = {
+            'default_domain': settings.DEFAULT_DOMAIN,
+            'user': self.user,
+            'key': key,
+        }
+
+        msg_plain = render_to_string('simple_email_confirmation/email/confirm_email.txt', context)
+        msg_html = render_to_string('simple_email_confirmation/email/confirm_email.html', context)
+
+        return send_mail(
+            settings.EMAIL_CONFIRMATION_HEADING,
+            msg_plain,
+            None,
+            [self.email],
+            html_message=msg_html,
+        )
 
 
 # by default, auto-add unconfirmed EmailAddress objects for new Users
