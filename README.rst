@@ -68,7 +68,7 @@ Installation
 
 #.  Add `DEFAULT_DOMAIN` to your `settings`. Remeber to set it to your current domain.
 
-.. code:: python
+    .. code:: python
 
         DEFAULT_DOMAIN = 'http://localhost'
         # or, depending on your configuration:
