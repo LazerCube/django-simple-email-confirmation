@@ -66,6 +66,14 @@ Installation
 
         pip install django-simple-email-confirmation
 
+#.  Add `DEFAULT_DOMAIN` to your `settings`. Remeber to set it to your current domain.
+
+.. code:: python
+
+        DEFAULT_DOMAIN = 'http://localhost'
+        # or, depending on your configuration:
+        DEFAULT_DOMAIN = 'https://{}'.format(ALLOWED_HOSTS[0])
+
 #.  Add `simple_email_confirmation` to your `settings.INSTALLED_APPS`__:
 
     .. code:: python
