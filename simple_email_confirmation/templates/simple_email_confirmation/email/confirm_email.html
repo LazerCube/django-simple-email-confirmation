@@ -1,0 +1,4 @@
+{% load i18n%}
+
+<h4>Hi {{ user.get_full_name }}</h4>
+<p>Click this link <a href="{{ default_domain }}{% url 'simple_email_confirmation:confirm_email' key %}"></a> to confirm this email.</p>

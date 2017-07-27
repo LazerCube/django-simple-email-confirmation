@@ -1,0 +1,4 @@
+{% load i18n %}
+
+Hi {{ user.get_full_name }}
+Use this link {{ default_domain }}{% url 'simple_email_confirmation:confirm_email' key %} to confirm this email.
