@@ -91,18 +91,18 @@ class SimpleEmailConfirmationUserMixin(object):
     def get_confirmed_emails(self):
         "List of emails this User has confirmed"
         address_qs = self.email_address_set.filter(confirmed_at__isnull=False)
-        return [address for address in address_qs]
+        return [address.email for address in address_qs]
 
 
     def get_unconfirmed_emails(self):
         "List of emails this User has been associated with but not confirmed"
         address_qs = self.email_address_set.filter(confirmed_at__isnull=True)
-        return [address for address in address_qs]
+        return [address.email for address in address_qs]
 
     def get_all_emails(self):
         "List of all emails this user has been associated with"
         address_qs = self.email_address_set.filter()
-        return [address for address in address_qs]
+        return [address.email for address in address_qs]
 
     def confirm_email(self, confirmation_key, save=True):
         """
