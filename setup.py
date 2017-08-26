@@ -29,7 +29,7 @@ setup(
     long_description=read('README.rst'),
     url='https://github.com/mfogel/django-simple-email-confirmation',
     license='BSD',
-    packages = find_packages()
+    packages = find_packages(),
     # packages=[
     #     'simple_email_confirmation',
     #     'simple_email_confirmation.migrations',
