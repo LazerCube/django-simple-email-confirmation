@@ -9,5 +9,5 @@ def confirm_email(request, confirmation_key):
     try:
         email = request.user.confirm_email(confirmation_key)
     except EmailAddress.DoesNotExist:
-         raise Http404("Confirmation reference does not found! Either this link has expired or is invalid. Please request a new confirmation url.")
+         raise Http404("Confirmation reference not found! Either this link has expired or is invalid. Please request a new confirmation url.")
     return render(request, 'simple_email_confirmation/views/confirm_email.html', {'email': email})
