@@ -8,6 +8,9 @@ from django.utils.crypto import get_random_string
 from django.utils import timezone
 from django.utils.translation import ugettext_lazy as _
 
+from django.template.loader import render_to_string
+from django.core.mail import send_mail
+
 from .exceptions import (
     EmailConfirmationExpired, EmailIsPrimary, EmailNotConfirmed,
 )
@@ -90,9 +93,15 @@ class SimpleEmailConfirmationUserMixin(object):
         address_qs = self.email_address_set.filter(confirmed_at__isnull=False)
         return [address.email for address in address_qs]
 
+
     def get_unconfirmed_emails(self):
         "List of emails this User has been associated with but not confirmed"
         address_qs = self.email_address_set.filter(confirmed_at__isnull=True)
+        return [address.email for address in address_qs]
+
+    def get_all_emails(self):
+        "List of all emails this user has been associated with"
+        address_qs = self.email_address_set.filter()
         return [address.email for address in address_qs]
 
     def confirm_email(self, confirmation_key, save=True):
@@ -151,7 +160,6 @@ class SimpleEmailConfirmationUserMixin(object):
 
 
 class EmailAddressManager(models.Manager):
-
     def generate_key(self):
         "Generate a new random key and return it"
         # sticking with the django defaults
@@ -178,6 +186,7 @@ class EmailAddressManager(models.Manager):
         key = self.generate_key()
         # let email-already-exists exception propogate through
         address = self.create(user=user, email=email, key=key)
+        address.send_confirmation_email()
         unconfirmed_email_created.send(sender=user, email=email)
         return address
 
@@ -198,6 +207,16 @@ class EmailAddressManager(models.Manager):
                 email_confirmed.send(sender=address.user, email=address.email)
 
         return address
+
+
+
+def get_user_primary_email(user):
+    # softly failing on using these methods on `user` to support
+    # not using the SimpleEmailConfirmationMixin in your User model
+    # https://github.com/mfogel/django-simple-email-confirmation/pull/3
+    if hasattr(user, 'get_primary_email'):
+        return user.get_primary_email()
+    return user.email
 
 
 class EmailAddress(models.Model):
@@ -233,7 +252,8 @@ class EmailAddress(models.Model):
 
     @property
     def is_primary(self):
-        return bool(self.user.email == self.email)
+        primary_email = get_user_primary_email(self.user)
+        return bool(primary_email == self.email)
 
     @property
     def key_expires_at(self):
@@ -254,12 +274,35 @@ class EmailAddress(models.Model):
         with this email.  Note that the previou confirmation key will
         cease to work.
         """
-        self.key = self._default_manager.generate_key()
+        self.key = EmailAddress._default_manager.generate_key()
         self.set_at = timezone.now()
 
         self.confirmed_at = None
         self.save(update_fields=['key', 'set_at', 'confirmed_at'])
         return self.key
+
+    def send_confirmation_email(self):
+        if(self.is_key_expired):
+            key = self.reset_confirmation()
+        else:
+            key = self.key
+
+        context = {
+            'default_domain': settings.DEFAULT_DOMAIN,
+            'user': self.user,
+            'key': key,
+        }
+
+        msg_plain = render_to_string('simple_email_confirmation/email/confirm_email.txt', context)
+        msg_html = render_to_string('simple_email_confirmation/email/confirm_email.html', context)
+
+        return send_mail(
+            settings.EMAIL_CONFIRMATION_HEADING,
+            msg_plain,
+            None,
+            [self.email],
+            html_message=msg_html,
+        )
 
 
 # by default, auto-add unconfirmed EmailAddress objects for new Users
@@ -267,17 +310,12 @@ if getattr(settings, 'SIMPLE_EMAIL_CONFIRMATION_AUTO_ADD', True):
     def auto_add(sender, **kwargs):
         if sender == get_user_model() and kwargs['created']:
             user = kwargs.get('instance')
-            # softly failing on using these methods on `user` to support
-            # not using the SimpleEmailConfirmationMixin in your User model
-            # https://github.com/mfogel/django-simple-email-confirmation/pull/3
-            if hasattr(user, 'get_primary_email'):
-                email = user.get_primary_email()
-            else:
-                email = user.email
-            if hasattr(user, 'add_unconfirmed_email'):
-                user.add_unconfirmed_email(email)
-            else:
-                user.email_address_set.create_unconfirmed(email)
+            email = get_user_primary_email(user)
+            if email:
+                if hasattr(user, 'add_unconfirmed_email'):
+                    user.add_unconfirmed_email(email)
+                else:
+                    user.email_address_set.create_unconfirmed(email)
 
     # TODO: try to only connect this to the User model. We can't use
     #       get_user_model() here - results in import loop.

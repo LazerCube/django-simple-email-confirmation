@@ -19,8 +19,11 @@ DEBUG = True
 
 TEMPLATE_DEBUG = True
 
-ALLOWED_HOSTS = []
+DEFAULT_DOMAIN = 'http://localhost/'
+# or, depending on your configuration:
+# DEFAULT_DOMAIN = 'https://{}'.format(ALLOWED_HOSTS[0])
 
+ALLOWED_HOSTS = []
 
 # Application definition
 
@@ -44,7 +47,7 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
 
-ROOT_URLCONF = 'project.urls'
+ROOT_URLCONF = 'simple_email_confirmation.urls'
 
 WSGI_APPLICATION = 'project.wsgi.application'
 
@@ -80,3 +83,7 @@ STATIC_URL = '/static/'
 
 # Custom user model
 AUTH_USER_MODEL = 'myapp.User'
+
+# File backend for testing sendmail
+EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+EMAIL_FILE_PATH = '/tmp/emails'

@@ -1,17 +1,14 @@
 django-simple-email-confirmation
 ================================
 
-.. image:: https://api.travis-ci.org/mfogel/django-simple-email-confirmation.png?branch=develop
-   :target: https://travis-ci.org/mfogel/django-simple-email-confirmation
+.. image:: https://img.shields.io/travis/mfogel/django-simple-email-confirmation/develop.svg
+   :target: https://travis-ci.org/mfogel/django-simple-email-confirmation/
 
-.. image:: https://coveralls.io/repos/mfogel/django-simple-email-confirmation/badge.png?branch=develop
-   :target: https://coveralls.io/r/mfogel/django-simple-email-confirmation
+.. image:: https://img.shields.io/coveralls/mfogel/django-simple-email-confirmation/develop.svg
+   :target: https://coveralls.io/r/mfogel/django-simple-email-confirmation/
 
-.. image:: https://pypip.in/v/django-simple-email-confirmation/badge.png
-   :target: https://crate.io/packages/django-simple-email-confirmation/
-
-.. image:: https://pypip.in/d/django-simple-email-confirmation/badge.png
-   :target: https://crate.io/packages/django-simple-email-confirmation/
+.. image:: https://img.shields.io/pypi/dm/django-simple-email-confirmation.svg
+   :target: https://pypi.python.org/pypi/django-simple-email-confirmation/
 
 A Django app providing simple email confirmation.
 
@@ -29,11 +26,14 @@ Create a new User, confirm their email:
 
 .. code:: python
 
+    from django.core.mail import send_mail
+    # ...
+
     email = 'original@here.com'
     user = User.objects.create_user(email, email=email)
     user.is_confirmed # False
 
-    send_email(email, 'Use %s to confirm your email' % user.confirmation_key)
+    send_mail(email, 'Use %s to confirm your email' % user.confirmation_key)
     # User gets email, passes the confirmation_key back to your server
 
     user.confirm_email(user.confirmation_key)
@@ -47,7 +47,7 @@ Add another email to an existing User, confirm it, then set it as their primary.
     confirmation_key = user.add_unconfirmed_email(new_email)
     new_email in user.unconfirmed_emails # True
 
-    send_email(new_email, 'Use %s to confirm your new email' % confirmation_key)
+    send_mail(new_email, 'Use %s to confirm your new email' % confirmation_key)
     # User gets email, passes the confirmation_key back to your server
 
     user.confirm_email(confirmation_key)
@@ -66,6 +66,14 @@ Installation
 
         pip install django-simple-email-confirmation
 
+#.  Add `DEFAULT_DOMAIN` to your `settings`. Remeber to set it to your current domain.
+
+    .. code:: python
+
+        DEFAULT_DOMAIN = 'http://localhost'
+        # or, depending on your configuration:
+        DEFAULT_DOMAIN = 'https://{}'.format(ALLOWED_HOSTS[0])
+
 #.  Add `simple_email_confirmation` to your `settings.INSTALLED_APPS`__:
 
     .. code:: python
@@ -81,7 +89,7 @@ Installation
     .. code:: python
 
         from django.contrib.auth.models import AbstractUser
-        from simple_email_confirmation import SimpleEmailConfirmationUserMixin
+        from simple_email_confirmation.models import SimpleEmailConfirmationUserMixin
 
         class User(SimpleEmailConfirmationUserMixin, AbstractUser):
             pass
@@ -89,16 +97,28 @@ Installation
     Note: you don't strictly have to do this final step. Without this, you won't have the nice helper functions and properties on your `User` objects but the remainder of the app should function fine.
 
 
+Python/Django supported versions
+--------------------------------
+
+- Python: 2.7, 3.4, 3.5 and 3.6
+- Django: 1.8 to 1.11
+
+
 Running the Tests
 -----------------
 
-#.  Install `tox`__.
+#.  Install `tox`__ and `coverage`__
+
+    .. code:: sh
+
+        pip install tox coverage
 
 #.  From the repository root, run
 
     .. code:: sh
 
         tox
+        tox -e coverage
 
     It's that simple.
 
@@ -120,6 +140,7 @@ __ http://www.pip-installer.org/
 __ https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
 __ https://docs.djangoproject.com/en/dev/topics/auth/customizing/#specifying-a-custom-user-model
 __ https://tox.readthedocs.org/
+__ https://coverage.readthedocs.org/
 __ https://github.com/mfogel/django-simple-email-confirmation
 __ https://github.com/pinax/django-email-confirmation
 __ https://github.com/jtauber/django-email-confirmation

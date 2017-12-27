@@ -1,0 +1,7 @@
+.tox/
+dist/
+*.egg-info/
+*.pyc
+.DS_Store
+
+simple_email_confirmation/tests/tmp/
