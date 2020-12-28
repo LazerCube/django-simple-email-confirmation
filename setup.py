@@ -1,7 +1,7 @@
 import re
+import sys
 from os import path
 from setuptools import setup, find_packages
-
 
 # read() and find_version() taken from jezdez's python apps, ex:
 # https://github.com/jezdez/django_compressor/blob/develop/setup.py
@@ -30,7 +30,10 @@ setup(
     url='https://github.com/mfogel/django-simple-email-confirmation',
     license='BSD',
     packages = find_packages(),
-    install_requires=['django>=1.7.0'],
+    install_requires=[
+        'django>=1.7.0' if sys.version_info[0] > 2 else 'Django<2.0',
+        'six'
+    ],
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Environment :: Web Environment",
