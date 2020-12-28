@@ -27,16 +27,8 @@ class SimpleEmailConfirmationUserMixin(object):
     Provides python-level functionality only.
     """
 
-    # if your User object stores the User's primary email address
-    # in a place other than User.email, you can override the
-    # primary_email_field_name and/or primary_email get/set methods.
-    # All access to a User's primary_email in this app passes through
-    # these two get/set methods.
-
-    primary_email_field_name = 'email'
-
     def get_primary_email(self):
-        return getattr(self, self.primary_email_field_name)
+        return getattr(self, self.get_email_field_name())
 
     def set_primary_email(self, email, require_confirmed=True):
         "Set an email address as primary"
@@ -47,8 +39,8 @@ class SimpleEmailConfirmationUserMixin(object):
         if email not in self.get_confirmed_emails() and require_confirmed:
             raise EmailNotConfirmed()
 
-        setattr(self, self.primary_email_field_name, email)
-        self.save(update_fields=[self.primary_email_field_name])
+        setattr(self, self.get_primary_email(), email)
+        self.save(update_fields=[self.get_primary_email()])
         primary_email_changed.send(
             sender=self.__class__,
             user=self,
@@ -165,13 +157,20 @@ class SimpleEmailConfirmationUserMixin(object):
 
 
 class EmailAddressManager(models.Manager):
-    def generate_key(self):
-        "Generate a new random key and return it"
+    def get_random_key(self):
+        "Get a new random key and return it"
         # By default, a length of keys is 12. If you want to change it, set
         # settings.SIMPLE_EMAIL_CONFIRMATION_KEY_LENGTH to integer value (max 40).
         return get_random_string(
             length=min(getattr(settings, 'SIMPLE_EMAIL_CONFIRMATION_KEY_LENGTH', 12), 40)
         )
+
+    def generate_key(self):
+        "Generates a new random key and insures key is unquie to avoid key collisions"
+        key = self.get_random_key()
+        while self.filter(key=key).exists():
+            key = self.get_random_key()
+        return key
 
     def create_confirmed(self, email, user=None):
         "Create an email address in the confirmed state"
