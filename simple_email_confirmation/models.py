@@ -6,11 +6,13 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.utils.crypto import get_random_string
 from django.utils import timezone
+from six import python_2_unicode_compatible
 from django.utils.translation import ugettext_lazy as _
 
 from django.template.loader import render_to_string
 from django.core.mail import send_mail
 
+from simple_email_confirmation import get_email_address_model
 from .exceptions import (
     EmailConfirmationExpired, EmailIsPrimary, EmailNotConfirmed,
 )
@@ -42,19 +44,22 @@ class SimpleEmailConfirmationUserMixin(object):
         if email == old_email:
             return
 
-        if email not in self.confirmed_emails and require_confirmed:
+        if email not in self.get_confirmed_emails() and require_confirmed:
             raise EmailNotConfirmed()
 
         setattr(self, self.primary_email_field_name, email)
         self.save(update_fields=[self.primary_email_field_name])
         primary_email_changed.send(
-            sender=self, old_email=old_email, new_email=email,
+            sender=self.__class__,
+            user=self,
+            old_email=old_email,
+            new_email=email,
         )
 
     @property
     def is_confirmed(self):
         "Is the User's primary email address confirmed?"
-        return self.get_primary_email() in self.confirmed_emails
+        return self.get_primary_email() in self.get_confirmed_emails()
 
     @property
     def confirmed_at(self):
@@ -109,7 +114,7 @@ class SimpleEmailConfirmationUserMixin(object):
         Attempt to confirm an email using the given key.
         Returns the email that was confirmed, or raise an exception.
         """
-        address = self.email_address_set.confirm(confirmation_key, save=save)
+        address = self.email_address_set.confirm(confirmation_key, save=save, user=self)
         return address.email
 
     def add_confirmed_email(self, email):
@@ -135,7 +140,7 @@ class SimpleEmailConfirmationUserMixin(object):
         """
         try:
             address = self.email_address_set.get(email=email)
-        except EmailAddress.DoesNotExist:
+        except get_email_address_model().DoesNotExist:
             key = self.add_unconfirmed_email(email)
         else:
             if not address.is_confirmed:
@@ -162,8 +167,11 @@ class SimpleEmailConfirmationUserMixin(object):
 class EmailAddressManager(models.Manager):
     def generate_key(self):
         "Generate a new random key and return it"
-        # sticking with the django defaults
-        return get_random_string()
+        # By default, a length of keys is 12. If you want to change it, set
+        # settings.SIMPLE_EMAIL_CONFIRMATION_KEY_LENGTH to integer value (max 40).
+        return get_random_string(
+            length=min(getattr(settings, 'SIMPLE_EMAIL_CONFIRMATION_KEY_LENGTH', 12), 40)
+        )
 
     def create_confirmed(self, email, user=None):
         "Create an email address in the confirmed state"
@@ -186,8 +194,12 @@ class EmailAddressManager(models.Manager):
         key = self.generate_key()
         # let email-already-exists exception propogate through
         address = self.create(user=user, email=email, key=key)
-        address.send_confirmation_email()
-        unconfirmed_email_created.send(sender=user, email=email)
+        address.send_confirmation_email() # Move into signal.
+        unconfirmed_email_created.send(
+            sender=user.__class__,
+            user=user,
+            email=email,
+        )
         return address
 
     def confirm(self, key, user=None, save=True):
@@ -204,10 +216,13 @@ class EmailAddressManager(models.Manager):
             address.confirmed_at = timezone.now()
             if save:
                 address.save(update_fields=['confirmed_at'])
-                email_confirmed.send(sender=address.user, email=address.email)
+                email_confirmed.send(
+                    sender=address.user.__class__,
+                    user=address.user,
+                    email=address.email
+                )
 
         return address
-
 
 
 def get_user_primary_email(user):
@@ -219,11 +234,13 @@ def get_user_primary_email(user):
     return user.email
 
 
-class EmailAddress(models.Model):
+@python_2_unicode_compatible
+class AbstractEmailAddress(models.Model):
     "An email address belonging to a User"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name='email_address_set',
+        on_delete=models.CASCADE,
     )
     email = models.EmailField(max_length=255)
     key = models.CharField(max_length=40, unique=True)
@@ -242,8 +259,9 @@ class EmailAddress(models.Model):
     class Meta:
         unique_together = (('user', 'email'),)
         verbose_name_plural = "email addresses"
+        abstract = True
 
-    def __unicode__(self):
+    def __str__(self):
         return '{} <{}>'.format(self.user, self.email)
 
     @property
@@ -271,10 +289,10 @@ class EmailAddress(models.Model):
     def reset_confirmation(self):
         """
         Re-generate the confirmation key and key expiration associated
-        with this email.  Note that the previou confirmation key will
+        with this email.  Note that the previous confirmation key will
         cease to work.
         """
-        self.key = EmailAddress._default_manager.generate_key()
+        self.key = get_email_address_model()._default_manager.generate_key()
         self.set_at = timezone.now()
 
         self.confirmed_at = None
@@ -305,10 +323,15 @@ class EmailAddress(models.Model):
         )
 
 
+class EmailAddress(AbstractEmailAddress):
+    class Meta(AbstractEmailAddress.Meta):
+        swappable = 'SIMPLE_EMAIL_CONFIRMATION_EMAIL_ADDRESS_MODEL'
+
+
 # by default, auto-add unconfirmed EmailAddress objects for new Users
 if getattr(settings, 'SIMPLE_EMAIL_CONFIRMATION_AUTO_ADD', True):
     def auto_add(sender, **kwargs):
-        if sender == get_user_model() and kwargs['created']:
+        if sender == get_user_model() and kwargs['created'] and not kwargs['raw']:
             user = kwargs.get('instance')
             email = get_user_primary_email(user)
             if email:

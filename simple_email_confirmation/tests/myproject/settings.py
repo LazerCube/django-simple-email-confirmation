@@ -84,6 +84,11 @@ STATIC_URL = '/static/'
 # Custom user model
 AUTH_USER_MODEL = 'myapp.User'
 
+
 # File backend for testing sendmail
 EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 EMAIL_FILE_PATH = '/tmp/emails'
+
+
+# Set the length of a confirmation key
+SIMPLE_EMAIL_CONFIRMATION_KEY_LENGTH = 32
